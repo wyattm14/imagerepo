@@ -3,27 +3,8 @@ name: Generate Social Image
 on:
   workflow_dispatch:
     inputs:
-      template:
-        description: 'Template name (announcement, feature-launch, tip, listicle, comparison)'
-        required: true
-        type: choice
-        options:
-          - announcement
-          - feature-launch
-          - tip
-          - listicle
-          - comparison
-      headline:
-        description: 'Main headline text'
-        required: true
-        type: string
-      subheadline:
-        description: 'Subheadline or supporting text'
-        required: false
-        type: string
-        default: ''
-      filename:
-        description: 'Output filename (e.g., my-image.png)'
+      config:
+        description: 'JSON config for image generation'
         required: true
         type: string
 
@@ -53,21 +34,23 @@ jobs:
       - name: Generate image
         id: generate
         run: |
-          python scripts/generate.py \
-            --template "${{ github.event.inputs.template }}" \
-            --headline "${{ github.event.inputs.headline }}" \
-            --subheadline "${{ github.event.inputs.subheadline }}" \
-            --filename "${{ github.event.inputs.filename }}"
+          python scripts/generate_v2.py --config '${{ github.event.inputs.config }}'
+
+      - name: Get filename from config
+        id: filename
+        run: |
+          FILENAME=$(echo '${{ github.event.inputs.config }}' | python -c "import sys, json; print(json.load(sys.stdin).get('filename', 'output.png'))")
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
 
       - name: Commit and push generated image
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add output/
-          git commit -m "Generated image: ${{ github.event.inputs.filename }}" || echo "No changes to commit"
+          git commit -m "Generated image: ${{ steps.filename.outputs.filename }}" || echo "No changes to commit"
           git push
 
       - name: Output image URL
         run: |
-          echo "Image URL: https://raw.githubusercontent.com/${{ github.repository }}/main/output/${{ github.event.inputs.filename }}"
-          echo "image_url=https://raw.githubusercontent.com/${{ github.repository }}/main/output/${{ github.event.inputs.filename }}" >> $GITHUB_OUTPUT
+          echo "Image URL: https://raw.githubusercontent.com/${{ github.repository }}/main/output/${{ steps.filename.outputs.filename }}"
+          echo "image_url=https://raw.githubusercontent.com/${{ github.repository }}/main/output/${{ steps.filename.outputs.filename }}" >> $GITHUB_OUTPUT
